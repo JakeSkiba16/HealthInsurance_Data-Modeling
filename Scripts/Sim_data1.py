@@ -238,12 +238,57 @@ def make_plot(y, ylabel, title, filename, hline=None):
         ax.legend(fontsize=7)
     fig.suptitle(title, fontsize=14)
     plt.tight_layout()
-    plt.savefig(filename, dpi=150)
+    plt.savefig(filename, dpi=150, bbox_inches='tight')
     plt.show()
+   
+
+# ─────────────────────────────────────────
+# PLOT 1: Distribution Shape Histograms
+# ─────────────────────────────────────────
+
+fig, axes = plt.subplots(1, 5, figsize=(22, 4))
+
+dist_display = {
+    'Normal':            ('Normal\n(μ=1, σ=1)',           gen_normal),
+    'Gamma':             ('Gamma\n(shape=2, μ=1)',         gen_gamma),
+    'LognormalModerate': ('Lognormal Moderate\n(σ=0.75)',  gen_lognormal_moderate),
+    'LognormalHigh':     ('Lognormal High\n(σ=1.5)',       gen_lognormal_high),
+    'Mixture':           ('Mixture\n(95% mod + 5% cat)',   gen_mixture),
+}
+
+hist_rng = np.random.default_rng(999)
+
+for ax, (dist_name, (label, gen_func)) in zip(axes, dist_display.items()):
+    # Generate one large sample for visualization
+    sample = gen_func(1, 5000, hist_rng).flatten()
+
+    # Clip extreme values for display clarity (keep 99th percentile)
+    clip_val = np.percentile(sample, 99)
+    sample_clipped = sample[sample <= clip_val]
+
+    ax.hist(sample_clipped, bins=60, color='steelblue', edgecolor='white',
+            linewidth=0.3, density=True)
+    ax.axvline(sample.mean(), color='red', linestyle='--', linewidth=1.5,
+               label=f'Mean={sample.mean():.2f}')
+    ax.set_title(label, fontsize=10)
+    ax.set_xlabel('Claim Cost')
+    ax.set_ylabel('Density' if ax == axes[0] else '')
+    skew = pd.Series(sample).skew()
+    ax.text(0.97, 0.95, f'Skew={skew:.2f}', transform=ax.transAxes,
+            ha='right', va='top', fontsize=8, color='darkred')
+    ax.legend(fontsize=7)
+
+fig.suptitle('Simulated Claim Cost Distributions (n=5,000 draw, clipped at 99th pct)',
+             fontsize=13)
+plt.tight_layout()
+plt.savefig('distributions.png', dpi=150)
+plt.show()
 
 make_plot('Coverage',  'Coverage Probability', 'Coverage Probability vs Sample Size',
           'coverage.png', hline=0.95)
+
 make_plot('AvgWidth',  'Average Interval Width', 'Average Interval Width vs Sample Size',
           'width.png')
-make_plot('TypeIError','Type I Error Rate', 'Type I Error Rate vs Sample Size',
+
+make_plot('TypeIError', 'Type I Error Rate', 'Type I Error Rate vs Sample Size',
           'type1.png', hline=0.05)
