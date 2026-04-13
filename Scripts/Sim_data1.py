@@ -220,75 +220,78 @@ print(df.to_string(index=False))
 # 7. PLOTS
 # ─────────────────────────────────────────
 
+import os
+output_dir = "simulation_plots"
+os.makedirs(output_dir, exist_ok=True)
+
 sns.set_theme(style="whitegrid")
 
-def make_plot(y, ylabel, title, filename, hline=None):
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5), sharey=True)
-    methods = ['t-interval', 'z-interval', 'bootstrap']
-    for ax, method in zip(axes, methods):
-        sub = df[df['Method'] == method]
-        for dist_name in DISTRIBUTIONS:
-            d = sub[sub['Distribution'] == dist_name]
-            ax.plot(d['n'], d[y], marker='o', label=dist_name)
-        if hline is not None:
-            ax.axhline(hline, color='red', linestyle='--', linewidth=1, label='Target')
-        ax.set_title(method)
-        ax.set_xlabel('Sample Size (n)')
-        ax.set_ylabel(ylabel)
-        ax.legend(fontsize=7)
-    fig.suptitle(title, fontsize=14)
-    plt.tight_layout()
-    plt.savefig(filename, dpi=150, bbox_inches='tight')
-    plt.show()
-   
-
-# ─────────────────────────────────────────
-# PLOT 1: Distribution Shape Histograms
-# ─────────────────────────────────────────
-
-fig, axes = plt.subplots(1, 5, figsize=(22, 4))
+# ── Plot 1: Distribution Shape Histograms ────────────────────────────
 
 dist_display = {
-    'Normal':            ('Normal\n(μ=1, σ=1)',           gen_normal),
-    'Gamma':             ('Gamma\n(shape=2, μ=1)',         gen_gamma),
-    'LognormalModerate': ('Lognormal Moderate\n(σ=0.75)',  gen_lognormal_moderate),
-    'LognormalHigh':     ('Lognormal High\n(σ=1.5)',       gen_lognormal_high),
-    'Mixture':           ('Mixture\n(95% mod + 5% cat)',   gen_mixture),
+    'Normal':            ('Normal\n(μ=1, σ=1)',            gen_normal),
+    'Gamma':             ('Gamma\n(shape=2, μ=1)',          gen_gamma),
+    'LognormalModerate': ('Lognormal Moderate\n(σ=0.75)',   gen_lognormal_moderate),
+    'LognormalHigh':     ('Lognormal High\n(σ=1.5)',        gen_lognormal_high),
+    'Mixture':           ('Mixture\n(95% mod + 5% cat)',    gen_mixture),
 }
 
 hist_rng = np.random.default_rng(999)
 
-for ax, (dist_name, (label, gen_func)) in zip(axes, dist_display.items()):
-    # Generate one large sample for visualization
-    sample = gen_func(1, 5000, hist_rng).flatten()
+fig1, axes1 = plt.subplots(1, 5, figsize=(22, 4))
 
-    # Clip extreme values for display clarity (keep 99th percentile)
-    clip_val = np.percentile(sample, 99)
-    sample_clipped = sample[sample <= clip_val]
-
-    ax.hist(sample_clipped, bins=60, color='steelblue', edgecolor='white',
+for ax, (dist_name, (label, gen_func)) in zip(axes1, dist_display.items()):
+    sample = gen_func(1, 5000, hist_rng).flatten()  # no clipping — show full tail
+    ax.hist(sample, bins=80, color='steelblue', edgecolor='white',
             linewidth=0.3, density=True)
     ax.axvline(sample.mean(), color='red', linestyle='--', linewidth=1.5,
                label=f'Mean={sample.mean():.2f}')
     ax.set_title(label, fontsize=10)
     ax.set_xlabel('Claim Cost')
-    ax.set_ylabel('Density' if ax == axes[0] else '')
-    skew = pd.Series(sample).skew()
-    ax.text(0.97, 0.95, f'Skew={skew:.2f}', transform=ax.transAxes,
+    ax.set_ylabel('Density' if ax is axes1[0] else '')
+    skew_val = pd.Series(sample).skew()
+    ax.text(0.97, 0.95, f'Skew={skew_val:.2f}', transform=ax.transAxes,
             ha='right', va='top', fontsize=8, color='darkred')
     ax.legend(fontsize=7)
 
-fig.suptitle('Simulated Claim Cost Distributions (n=5,000 draw, clipped at 99th pct)',
-             fontsize=13)
+fig1.suptitle('Simulated Claim Cost Distributions (n=5,000)', fontsize=13)
 plt.tight_layout()
-plt.savefig('distributions.png', dpi=150)
+plt.savefig(os.path.join(output_dir, 'plot1_distributions.png'), dpi=150, bbox_inches='tight')
 plt.show()
+plt.close(fig1)
 
-make_plot('Coverage',  'Coverage Probability', 'Coverage Probability vs Sample Size',
-          'coverage.png', hline=0.95)
+# ── Plots 2–4: Simulation Results ────────────────────────────────────
 
-make_plot('AvgWidth',  'Average Interval Width', 'Average Interval Width vs Sample Size',
-          'width.png')
+def make_plot(y, ylabel, title, filename, hline=None):
+    fig, axes = plt.subplots(1, 3, figsize=(18, 5), sharey=True)
+    methods = ['t-interval', 'z-interval', 'bootstrap']
+    colors = sns.color_palette("tab10", n_colors=len(DISTRIBUTIONS))
 
-make_plot('TypeIError', 'Type I Error Rate', 'Type I Error Rate vs Sample Size',
-          'type1.png', hline=0.05)
+    for ax, method in zip(axes, methods):
+        sub = df[df['Method'] == method]
+        for (dist_name, color) in zip(DISTRIBUTIONS, colors):
+            d = sub[sub['Distribution'] == dist_name].sort_values('n')
+            ax.plot(d['n'], d[y], marker='o', label=dist_name, color=color)
+        if hline is not None:
+            ax.axhline(hline, color='red', linestyle='--', linewidth=1.2, label='Target')
+        ax.set_title(method, fontsize=11)
+        ax.set_xlabel('Sample Size (n)')
+        ax.set_ylabel(ylabel)
+        ax.legend(fontsize=7)
+
+    fig.suptitle(title, fontsize=14)
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, filename), dpi=150, bbox_inches='tight')
+    plt.show()
+    plt.close(fig)  # critical — prevents figures from stacking
+
+make_plot('Coverage',   'Coverage Probability',  'Coverage Probability vs Sample Size',
+          'plot2_coverage.png',  hline=0.95)
+
+make_plot('AvgWidth',   'Average Interval Width', 'Average Interval Width vs Sample Size',
+          'plot3_width.png')
+
+make_plot('TypeIError', 'Type I Error Rate',      'Type I Error Rate vs Sample Size',
+          'plot4_type1error.png', hline=0.05)
+
+print(f"\nAll plots saved to: {os.path.abspath(output_dir)}/")
