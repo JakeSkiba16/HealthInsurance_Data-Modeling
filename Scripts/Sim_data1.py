@@ -216,6 +216,51 @@ df.to_csv("simulation_results.csv", index=False)
 print("\n── Results Preview ──────────────────────────")
 print(df.to_string(index=False))
 
+# ── Snapshot Table: n=25 and n=500, t-interval only (10 rows) ────────
+
+snapshot = df[(df['n'].isin([25, 500])) & (df['Method'] == 't-interval')].copy()
+snapshot = snapshot.sort_values(['Distribution', 'n']).reset_index(drop=True)
+
+snapshot['Coverage']   = snapshot['Coverage'].round(4)
+snapshot['AvgWidth']   = snapshot['AvgWidth'].round(4)
+snapshot['Bias']       = snapshot['Bias'].round(5)
+snapshot['MSE']        = snapshot['MSE'].round(5)
+snapshot['TypeIError'] = snapshot['TypeIError'].round(4)
+
+snapshot = snapshot.drop(columns=['MCStdErrCoverage', 'Method'])
+
+# Rename columns for display
+snapshot = snapshot.rename(columns={
+    'Distribution': 'Distribution',
+    'n':            'Sample Size',
+    'Coverage':     'Coverage',
+    'AvgWidth':     'Avg Width',
+    'Bias':         'Bias',
+    'MSE':          'MSE',
+    'TypeIError':   'Type I Error',
+})
+
+# Pretty print with separator lines
+col_widths = {col: max(len(col), snapshot[col].astype(str).str.len().max())
+              for col in snapshot.columns}
+
+header = '  '.join(col.ljust(col_widths[col]) for col in snapshot.columns)
+divider = '  '.join('-' * col_widths[col] for col in snapshot.columns)
+
+print("\n── Snapshot: n=25 vs n=500  (t-interval, 95% CI) " + "─" * 30)
+print(header)
+print(divider)
+
+prev_dist = None
+for _, row in snapshot.iterrows():
+    # Blank separator line between distributions
+    if prev_dist is not None and row['Distribution'] != prev_dist:
+        print()
+    line = '  '.join(str(row[col]).ljust(col_widths[col]) for col in snapshot.columns)
+    print(line)
+    prev_dist = row['Distribution']
+
+print(divider)
 # ─────────────────────────────────────────
 # 7. PLOTS
 # ─────────────────────────────────────────
